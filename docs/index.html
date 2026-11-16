@@ -61,6 +61,11 @@
   #close{position:absolute;top:calc(10px + env(safe-area-inset-top));right:10px;width:44px;height:44px;
     border-radius:50%;background:rgba(255,255,255,.12);color:#fff;font-size:20px;display:flex;
     align-items:center;justify-content:center;cursor:pointer;user-select:none}
+  #save{position:absolute;top:calc(10px + env(safe-area-inset-top));left:10px;height:44px;padding:0 16px;
+    border-radius:22px;background:rgba(255,255,255,.14);color:#fff;font-size:14px;font-weight:600;
+    display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;white-space:nowrap}
+  #save:hover{background:rgba(255,255,255,.24)}
+  #save.busy{opacity:.6;pointer-events:none}
   #spin{position:absolute;color:var(--dim);font-size:13px}
   .hide{display:none !important}
 </style>
@@ -82,13 +87,14 @@
 <div id="app" class="hide">
   <header><b>写真</b><span id="info"></span></header>
   <div id="grid"></div>
-  <footer>v1.0.0</footer>
+  <footer>v1.1.0</footer>
 </div>
 
 <div id="view">
   <img id="big" alt="">
   <div id="spin">よみこみ中…</div>
   <div id="cap"><div class="n"></div><div class="d"></div></div>
+  <div id="save">⬇︎ <span id="savetxt">保存</span></div>
   <div class="nav" id="prev">‹</div>
   <div class="nav" id="next">›</div>
   <div id="close">✕</div>
@@ -182,7 +188,9 @@ async function show(i){
   var it = items[i];
   $("#view").classList.add("open");
   $("#cap").querySelector(".n").textContent = it.n || "";
-  $("#cap").querySelector(".d").textContent = (it.d || "") + "　" + (i+1) + " / " + items.length;
+  var px = (it.w && it.h) ? "　" + it.w + "×" + it.h : "";
+  $("#cap").querySelector(".d").textContent = (it.d || "") + px + "　" + (i+1) + " / " + items.length;
+  $("#save").classList.remove("busy"); $("#savetxt").textContent = "保存";
   var big = $("#big");
   if(fullCache[it.f]){
     big.src = fullCache[it.f]; $("#spin").classList.add("hide");
@@ -208,6 +216,28 @@ async function show(i){
   });
 }
 function closeView(){ $("#view").classList.remove("open"); $("#big").removeAttribute("src"); cur = -1; }
+
+$("#save").onclick = async function(e){
+  e.stopPropagation();
+  if(cur < 0) return;
+  var it = items[cur];
+  var btn = $("#save"), txt = $("#savetxt");
+  btn.classList.add("busy"); txt.textContent = "じゅんび中…";
+  try{
+    var buf = await fetchOpen("d/" + (it.o || it.f));     // 元サイズを取りにいく
+    var url = URL.createObjectURL(new Blob([buf], {type:"image/jpeg"}));
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = (it.n || "photo").replace(/[\\/:*?"<>|]/g, "_") + ".jpg";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+    txt.textContent = "保存しました";
+    setTimeout(function(){ txt.textContent = "保存"; btn.classList.remove("busy"); }, 2000);
+  }catch(err){
+    txt.textContent = "失敗しました";
+    setTimeout(function(){ txt.textContent = "保存"; btn.classList.remove("busy"); }, 2500);
+  }
+};
 
 $("#prev").onclick = function(e){ e.stopPropagation(); show(cur-1); };
 $("#next").onclick = function(e){ e.stopPropagation(); show(cur+1); };
